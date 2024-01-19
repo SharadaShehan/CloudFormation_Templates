@@ -1,10 +1,14 @@
 AWSTemplateFormatVersion: '2010-09-09'
+
 Resources:
   MyS3Bucket:
     Type: 'AWS::S3::Bucket'
     Properties:
       PublicAccessBlockConfiguration:
          BlockPublicPolicy: false   # By default, assigning bucket policies to the bucket is blocked
+        #  BlockPublicAcls: true
+        #  IgnorePublicAcls: true
+        #  RestrictPublicBuckets: true
   
   MyBucketPolicy:
     Type: 'AWS::S3::BucketPolicy'
@@ -16,9 +20,5 @@ Resources:
           - Effect: 'Allow'
             Principal: '*'
             Action: 's3:*'
-            Resource: !Join
-            - ''
-            - - 'arn:aws:s3:::'
-              - !Ref MyS3Bucket
-              - /*
-
+            Resource: !Sub 'arn:aws:s3:::${MyS3Bucket}/*'
+ 
