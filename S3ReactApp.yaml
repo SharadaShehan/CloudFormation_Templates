@@ -22,7 +22,7 @@ Resources:
               Configuration:
                 RepositoryName: 'test-app'    # name of the repository in CodeCommit
                 BranchName: 'master'      # branch to build
-                PollForSourceChanges: false
+                PollForSourceChanges: true
         - Name: Build
           Actions:
             - Name: BuildAction
