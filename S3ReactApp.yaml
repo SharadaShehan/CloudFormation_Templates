@@ -1,0 +1,58 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'React App Deployment on S3'
+
+Parameters:
+  CodeCommitRepositoryName:
+    Type: String
+    Description: 'Name of the CodeCommit repository for the React app'
+
+Resources:
+  CodeCommitRepo:
+    Type: 'AWS::CodeCommit::Repository'
+    Properties:
+      RepositoryName: !Ref CodeCommitRepositoryName
+
+  S3Bucket:
+    Type: 'AWS::S3::Bucket'
+    DeletionPolicy: Retain
+    Properties:
+      BucketName: 'your-s3-bucket-name'  # Replace with your desired S3 bucket name
+      AccessControl: Private
+
+  CodeBuildProject:
+    Type: 'AWS::CodeBuild::Project'
+    Properties:
+      Name: 'ReactAppBuild'
+      ServiceRole: 'arn:aws:iam::YOUR_ACCOUNT_ID:role/CodeBuild-Service-Role'  # Replace with your CodeBuild service role ARN
+      Artifacts:
+        Type: 'S3'
+        Location: !Ref S3Bucket
+        Name: 'react-app'
+      Environment:
+        ComputeType: BUILD_GENERAL1_SMALL
+        Image: 'aws/codebuild/standard:5.0'
+        Type: LINUX_CONTAINER
+        EnvironmentVariables:
+          - Name: 'S3_BUCKET'
+            Value: !Ref S3Bucket
+      Source:
+        Type: CODECOMMIT
+        Location: !Ref CodeCommitRepositoryName
+      BadgeEnabled: true
+      BuildSpec: |
+        version: 0.2
+        phases:
+          install:
+            commands:
+              - npm install
+          build:
+            commands:
+              - npm run build
+        artifacts:
+          files: '**/*'
+          discard-paths: yes
+
+Outputs:
+  CodeBuildProjectName:
+    Value: !Ref CodeBuildProject
+    Description: 'Name of the CodeBuild project'
