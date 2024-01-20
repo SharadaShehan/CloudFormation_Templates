@@ -232,5 +232,3 @@ Resources:
                     Ref: DeployBucket
                   - "/*"
             Principal: "*"
-
-
