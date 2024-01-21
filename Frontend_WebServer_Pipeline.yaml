@@ -209,11 +209,13 @@ Resources:
                 - npm run build  
             post_build:
               commands:
-                - echo Build completed on `date`       
+                - echo Build completed on `date`
+                - cd ..
+                - cp appspec.yml frontend/build/    
           artifacts:
             files:
-              - appspec.yml
-              - frontend/build/*
+              - '**/*'
+            base-directory: 'frontend/build'
   
   PipelineBucket: 
     Type: 'AWS::S3::Bucket'
@@ -222,7 +224,7 @@ Resources:
     Type: 'AWS::S3::Bucket'
     Properties:
       WebsiteConfiguration:
-        IndexDocument: frontend/build/index.html
+        IndexDocument: index.html
       PublicAccessBlockConfiguration:
         BlockPublicAcls: false
       OwnershipControls:
@@ -365,7 +367,7 @@ Resources:
         - Key: Name
           Value: CodePipelineBlog
       UserData:
-        Fn::Base64:
+        Fn::Base64: 
           !Sub |
             #!/bin/bash
             yum update -y
@@ -383,10 +385,8 @@ Resources:
             ./install auto
 
             yum install -y nginx
-            systemctl start nginx
             systemctl enable nginx
-
-
+            systemctl start nginx
 
   #####
   # CodeDeploy Resources
