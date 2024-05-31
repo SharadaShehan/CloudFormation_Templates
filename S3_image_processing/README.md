@@ -1,4 +1,4 @@
-### Template to Process Images Uploaded to S3 Bucket and Store them in another S3 Bucket
+### Template for Lambda Triggered S3 Object Processing
 
 This template creates two s3 buckets and a lambda function that processes images uploaded to one of S3 buckets and stores them in other S3 bucket. The lambda function is triggered by an S3 event notification.
 
