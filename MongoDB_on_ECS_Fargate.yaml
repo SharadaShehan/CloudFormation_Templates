@@ -1,0 +1,163 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: "AWS CloudFormation template to deploy MongoDB on ECS with VPC"
+
+Parameters:
+  MongoDBUsername:
+    Description: "The MongoDB root username"
+    Type: String
+  MongoDBPassword:
+    Description: "The MongoDB root password"
+    Type: String
+
+Resources:
+  VPC:
+    Type: "AWS::EC2::VPC"
+    Properties:
+      CidrBlock: "10.0.0.0/16"
+      EnableDnsSupport: true
+      EnableDnsHostnames: true
+      Tags:
+        - Key: "Name"
+          Value: "MongoDBVPC"
+
+  InternetGateway:
+    Type: "AWS::EC2::InternetGateway"
+    Properties:
+      Tags:
+        - Key: "Name"
+          Value: "MongoDBInternetGateway"
+
+  AttachGateway:
+    Type: "AWS::EC2::VPCGatewayAttachment"
+    Properties:
+      VpcId: !Ref VPC
+      InternetGatewayId: !Ref InternetGateway
+
+  PublicSubnet:
+    Type: "AWS::EC2::Subnet"
+    Properties:
+      VpcId: !Ref VPC
+      CidrBlock: "10.0.1.0/24"
+      MapPublicIpOnLaunch: true
+      AvailabilityZone: !Select [ 0, !GetAZs ]
+      Tags:
+        - Key: "Name"
+          Value: "MongoDBPublicSubnet"
+
+  RouteTable:
+    Type: "AWS::EC2::RouteTable"
+    Properties:
+      VpcId: !Ref VPC
+      Tags:
+        - Key: "Name"
+          Value: "MongoDBRouteTable"
+
+  Route:
+    Type: "AWS::EC2::Route"
+    Properties:
+      RouteTableId: !Ref RouteTable
+      DestinationCidrBlock: "0.0.0.0/0"
+      GatewayId: !Ref InternetGateway
+
+  SubnetRouteTableAssociation1:
+    Type: "AWS::EC2::SubnetRouteTableAssociation"
+    Properties:
+      SubnetId: !Ref PublicSubnet
+      RouteTableId: !Ref RouteTable
+
+  ECSCluster:
+    Type: "AWS::ECS::Cluster"
+    Properties:
+      ClusterName: "MongoDBCluster"
+
+  ECSRole:
+    Type: "AWS::IAM::Role"
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: "Allow"
+            Principal:
+              Service: "ecs-tasks.amazonaws.com"
+            Action: "sts:AssumeRole"
+      Policies:
+        - PolicyName: "ECSTaskExecutionRolePolicy"
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: "Allow"
+                Action:
+                  - "ecr:GetDownloadUrlForLayer"
+                  - "ecr:BatchGetImage"
+                  - "ecr:BatchCheckLayerAvailability"
+                  - "logs:CreateLogStream"
+                  - "logs:PutLogEvents"
+                Resource: "*"
+
+  LogGroup:
+    Type: "AWS::Logs::LogGroup"
+    Properties:
+      LogGroupName: "/ecs/mongodb"
+      RetentionInDays: 7
+
+  SecurityGroup:
+    Type: "AWS::EC2::SecurityGroup"
+    Properties:
+      GroupDescription: "Enable access to MongoDB"
+      VpcId: !Ref VPC
+      SecurityGroupIngress:
+        - IpProtocol: "tcp"
+          FromPort: 27017
+          ToPort: 27017
+          CidrIp: "0.0.0.0/0"
+
+  MongoDBTaskDefinition:
+    Type: "AWS::ECS::TaskDefinition"
+    Properties:
+      Family: "MongoDBTaskDefinition"
+      Cpu: "256"
+      Memory: "512"
+      NetworkMode: "awsvpc"
+      RequiresCompatibilities:
+        - "FARGATE"
+      ExecutionRoleArn: !GetAtt ECSRole.Arn
+      ContainerDefinitions:
+        - Name: "mongodb"
+          Image: "mongo:latest"
+          Essential: true
+          PortMappings:
+            - ContainerPort: 27017
+              HostPort: 27017
+          Environment:
+            - Name: "MONGO_INITDB_ROOT_USERNAME"
+              Value: !Ref MongoDBUsername
+            - Name: "MONGO_INITDB_ROOT_PASSWORD"
+              Value: !Ref MongoDBPassword
+          LogConfiguration:
+            LogDriver: "awslogs"
+            Options:
+              awslogs-group: "/ecs/mongodb"
+              awslogs-region: !Ref "AWS::Region"
+              awslogs-stream-prefix: "ecs"
+
+  MongoDBService:
+    Type: "AWS::ECS::Service"
+    Properties:
+      Cluster: !Ref ECSCluster
+      DesiredCount: 1
+      LaunchType: "FARGATE"
+      TaskDefinition: !Ref MongoDBTaskDefinition
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          AssignPublicIp: "ENABLED"
+          SecurityGroups:
+            - !Ref SecurityGroup
+          Subnets:
+            - !Ref PublicSubnet
+
+Outputs:
+  MongoDBConnectionAddress:
+    Description: "The connection address to access the MongoDB database"
+    Value: !Sub "mongodb://${MongoDBUsername}:${MongoDBPassword}@${AWS::StackName}.${AWS::Region}.amazonaws.com:27017"
+    Export:
+      Name: "MongoDBConnectionAddress"
